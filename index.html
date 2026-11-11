@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>热点聚合</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0c0e12;
+        --bg-soft: #10131a;
+        --card: #161a22;
+        --card-edge: #242a36;
+        --ink: #e8ebf1;
+        --ink-2: #a7aebc;
+        --ink-3: #6d7585;
+        --hot: #ff5a3c;
+        --hot-2: #ff8a3c;
+        --hot-3: #ffb03c;
+        --accent: #4c8dff;
+        --radius: 14px;
+        --topbar-h: 52px;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+          "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+      }
+      a { color: inherit; text-decoration: none; }
+      button {
+        font: inherit; color: inherit; background: none; border: 0;
+        cursor: pointer; -webkit-tap-highlight-color: transparent;
+      }
+
+      /* ---------- top bar ---------- */
+      .topbar {
+        height: var(--topbar-h);
+        display: flex; align-items: center; gap: 8px;
+        padding: 0 10px 0 6px;
+        background: var(--bg-soft);
+        border-bottom: 1px solid var(--card-edge);
+        position: relative; z-index: 5;
+      }
+      .tabs {
+        flex: 1; display: flex; gap: 2px; overflow-x: auto;
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        mask-image: linear-gradient(to right, #000 92%, transparent);
+        -webkit-mask-image: linear-gradient(to right, #000 92%, transparent);
+      }
+      .tabs::-webkit-scrollbar { display: none; }
+      .tab {
+        flex: 0 0 auto; padding: 7px 11px; border-radius: 999px;
+        font-size: 14px; color: var(--ink-2); white-space: nowrap;
+        display: inline-flex; align-items: center; gap: 6px;
+      }
+      .tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--ink-3)); }
+      .tab.active { background: #232936; color: var(--ink); font-weight: 600; }
+      .icon-btn {
+        flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px;
+        display: grid; place-items: center; color: var(--ink-2);
+      }
+      .icon-btn:active { background: #232936; }
+      .icon-btn svg { width: 19px; height: 19px; display: block; }
+      .icon-btn.spinning svg { animation: spin 0.9s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ---------- deck (mobile: swipe carousel) ---------- */
+      .deck {
+        height: calc(100dvh - var(--topbar-h));
+        display: flex; gap: 12px;
+        overflow-x: auto; overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      .deck::-webkit-scrollbar { display: none; }
+
+      .card {
+        flex: 0 0 calc(100% - 26px);
+        scroll-snap-align: center;
+        scroll-snap-stop: always;
+        background: var(--card);
+        border: 1px solid var(--card-edge);
+        border-radius: var(--radius);
+        display: flex; flex-direction: column;
+        overflow: hidden; min-height: 0;
+      }
+      .card.flash { border-color: var(--c); }
+
+      .card-head {
+        flex: 0 0 auto;
+        padding: 13px 14px 11px;
+        border-bottom: 1px solid var(--card-edge);
+        display: flex; align-items: center; gap: 9px;
+      }
+      .card-head .mark {
+        width: 10px; height: 26px; border-radius: 3px; background: var(--c);
+        flex: 0 0 auto;
+      }
+      .card-head .names { flex: 1; min-width: 0; line-height: 1.25; }
+      .card-head .pname { font-size: 16.5px; font-weight: 700; letter-spacing: 0.2px; }
+      .card-head .board { font-size: 12px; color: var(--ink-3); margin-left: 7px; font-weight: 400; }
+      .card-head .stamp { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+      .card-head .stamp b { color: var(--ink-2); font-weight: 500; }
+      .live-dot {
+        width: 6px; height: 6px; border-radius: 50%; background: #3ecf6e;
+        display: inline-block; margin-right: 4px; vertical-align: 1px;
+      }
+      .mini-btn {
+        flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px;
+        display: grid; place-items: center; color: var(--ink-3);
+      }
+      .mini-btn:active { background: #232936; color: var(--ink); }
+      .mini-btn svg { width: 15px; height: 15px; }
+      .mini-btn.spinning svg { animation: spin 0.9s linear infinite; }
+
+      .list {
+        flex: 1; overflow-y: auto; overflow-x: hidden;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        margin: 0; padding: 6px 0 10px; list-style: none;
+        scrollbar-width: thin; scrollbar-color: #2c333f transparent;
+      }
+      .item a {
+        display: flex; gap: 11px; padding: 8.5px 14px;
+        align-items: flex-start;
+      }
+      .item a:active { background: #1c212c; }
+      .rank {
+        flex: 0 0 22px; text-align: center;
+        font-size: 15px; font-weight: 700; font-style: italic;
+        color: var(--ink-3); line-height: 1.45;
+        font-variant-numeric: tabular-nums;
+      }
+      .item:nth-child(1) .rank { color: var(--hot); }
+      .item:nth-child(2) .rank { color: var(--hot-2); }
+      .item:nth-child(3) .rank { color: var(--hot-3); }
+      .item .body { flex: 1; min-width: 0; }
+      .item .title {
+        font-size: 15px; line-height: 1.5; color: var(--ink);
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        overflow: hidden; word-break: break-word;
+      }
+      .item .meta {
+        margin-top: 2px; font-size: 12px; line-height: 1.45; color: var(--ink-3);
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        overflow: hidden; word-break: break-word;
+      }
+      .item .meta .sep { margin: 0 5px; opacity: 0.6; }
+
+      /* card states */
+      .state {
+        flex: 1; display: none; flex-direction: column; align-items: center;
+        justify-content: center; gap: 12px; padding: 24px; text-align: center;
+      }
+      .card[data-state="loading"] .state-loading,
+      .card[data-state="error"] .state-error,
+      .card[data-state="empty"] .state-empty { display: flex; }
+      .card[data-state="loading"] .list,
+      .card[data-state="error"] .list,
+      .card[data-state="empty"] .list { display: none; }
+      .state p { margin: 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.6; }
+      .state .small { font-size: 12px; color: var(--ink-3); }
+      .state .actions { display: flex; gap: 10px; }
+      .btn {
+        padding: 8px 18px; border-radius: 999px; font-size: 13.5px;
+        background: #232936; color: var(--ink); border: 1px solid var(--card-edge);
+      }
+      .btn.primary { background: var(--c, var(--accent)); border-color: transparent; color: #fff; font-weight: 600; }
+      .skl { width: 100%; padding: 4px 16px; }
+      .skl div {
+        height: 15px; border-radius: 5px; margin: 15px 0;
+        background: linear-gradient(90deg, #1d222d 25%, #272e3c 50%, #1d222d 75%);
+        background-size: 200% 100%; animation: shimmer 1.3s infinite;
+      }
+      @keyframes shimmer { to { background-position: -200% 0; } }
+
+      /* swipe hint + dots (mobile) */
+      .pager {
+        position: fixed; left: 0; right: 0; z-index: 6;
+        bottom: calc(6px + env(safe-area-inset-bottom));
+        display: flex; flex-direction: column; align-items: center; gap: 5px;
+        pointer-events: none;
+      }
+      .pager .dots { display: flex; gap: 5px; }
+      .pager .dots i {
+        width: 5px; height: 5px; border-radius: 50%; background: #3a4152; transition: all .25s;
+      }
+      .pager .dots i.on { width: 16px; border-radius: 3px; background: var(--ink-2); }
+      .pager .hint {
+        font-size: 11px; color: var(--ink-3); letter-spacing: 1px;
+        transition: opacity .6s;
+      }
+      .pager .hint.gone { opacity: 0; }
+
+      /* global failure banner + embed fallback */
+      .banner {
+        position: fixed; left: 12px; right: 12px; z-index: 9;
+        bottom: calc(40px + env(safe-area-inset-bottom));
+        background: #2a2118; border: 1px solid #57402a; color: #f3d9b8;
+        border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.55;
+        display: none; gap: 10px; align-items: center;
+        box-shadow: 0 8px 28px rgba(0,0,0,.5);
+      }
+      .banner.show { display: flex; }
+      .banner p { margin: 0; flex: 1; }
+      .banner .btn { background: #57402a; border-color: #6d5136; color: #ffe9c9; flex: 0 0 auto; }
+      .embed-view { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: none; flex-direction: column; }
+      .embed-view.show { display: flex; }
+      .embed-view .bar {
+        height: var(--topbar-h); flex: 0 0 auto; display: flex; align-items: center;
+        gap: 10px; padding: 0 12px; background: var(--bg-soft);
+        border-bottom: 1px solid var(--card-edge); font-size: 14px; color: var(--ink-2);
+      }
+      .embed-view iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+
+      /* ---------- desktop: grid of cards ---------- */
+      @media (min-width: 900px) {
+        .deck {
+          display: grid; gap: 14px;
+          grid-template-columns: repeat(3, 1fr);
+          grid-template-rows: 1fr 1fr;
+          grid-auto-rows: 1fr;
+          overflow: hidden; scroll-snap-type: none;
+          padding: 14px;
+        }
+        .card { flex: none; }
+        .pager { display: none; }
+        .item a:hover { background: #1c212c; }
+        .tab:hover { color: var(--ink); }
+      }
+      @media (min-width: 1500px) {
+        .deck { grid-template-columns: repeat(3, 1fr); max-width: 1560px; margin: 0 auto; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .icon-btn.spinning svg, .mini-btn.spinning svg, .skl div { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <nav class="tabs" id="tabs" aria-label="平台"></nav>
+      <button class="icon-btn" id="refreshAll" title="刷新全部" aria-label="刷新全部">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+    </header>
+
+    <main class="deck" id="deck"></main>
+
+    <div class="pager" id="pager">
+      <div class="hint" id="swipeHint">← 左滑查看更多平台 →</div>
+      <div class="dots" id="dots"></div>
+    </div>
+
+    <div class="banner" id="banner">
+      <p>十三个平台的数据都没能取到，可能是网络波动或接口暂时不可用。可以先切到原站视图看热点。</p>
+      <button class="btn" id="toEmbed">打开原站视图</button>
+    </div>
+
+    <div class="embed-view" id="embedView">
+      <div class="bar">
+        <button class="btn" id="backToDeck">← 返回聚合视图</button>
+        <span>原站：newsnow.busiyi.world</span>
+      </div>
+      <iframe id="embedFrame" title="NewsNow 原站" loading="lazy"></iframe>
+    </div>
+
+    <script>
+      "use strict";
+      var API = "https://newsnow.busiyi.world/api/s?id=";
+      var ORIGIN = "https://newsnow.busiyi.world/";
+
+      var SOURCES = [
+        { id: "blockbeats",           name: "律动",            board: "快讯",     color: "#ff5e57" },
+        { id: "odaily",               name: "星球日报",        board: "快讯",     color: "#f5a623" },
+        { id: "bwenews",              name: "方程式新闻",      board: "快讯",     color: "#37aee2" },
+        { id: "cls-telegraph",        name: "财联社",          board: "电报",     color: "#e60023" },
+        { id: "wallstreetcn",         name: "华尔街见闻",      board: "快讯",     color: "#c8a24a" },
+        { id: "cointelegraph",        name: "CoinTelegraph",   board: "新闻",     color: "#f0b929" },
+        { id: "coindesk",             name: "CoinDesk",        board: "新闻",     color: "#f6c343" },
+        { id: "stocktwits",           name: "Stocktwits 美股热门", board: "讨论热度", color: "#2fbf71" },
+        { id: "yahoo-active",         name: "Yahoo 美股最活跃",    board: "成交量",   color: "#7d3ff2" },
+        { id: "juejin",               name: "稀土掘金",        board: "热榜",     color: "#1e80ff" },
+        { id: "github-trending-today",name: "GitHub",          board: "今日趋势", color: "#9e8cfc" },
+        { id: "linuxdo-resource",     name: "Linux.do 资源荟萃", board: "资源分享", color: "#20c4b2" },
+        { id: "linuxdo-welfare",      name: "Linux.do 福利羊毛", board: "福利优惠", color: "#ff7ab6" }
+      ];
+
+      var deck = document.getElementById("deck");
+      var tabsEl = document.getElementById("tabs");
+      var dotsEl = document.getElementById("dots");
+      var hintEl = document.getElementById("swipeHint");
+      var banner = document.getElementById("banner");
+      var refreshAllBtn = document.getElementById("refreshAll");
+      var cards = {};   // id -> {el, listEl, stampEl, btn, data}
+      var failCount = 0;
+
+      function el(tag, cls, text) {
+        var n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text != null) n.textContent = text;
+        return n;
+      }
+
+      function relTime(ts) {
+        if (!ts) return "";
+        var d = Date.now() - ts;
+        if (d < 60 * 1000) return "刚刚";
+        if (d < 3600 * 1000) return Math.floor(d / 60000) + " 分钟前";
+        if (d < 86400 * 1000) return Math.floor(d / 3600000) + " 小时前";
+        return Math.floor(d / 86400000) + " 天前";
+      }
+      function clockTime(ts) {
+        var d = new Date(ts);
+        function p(n) { return (n < 10 ? "0" : "") + n; }
+        var today = new Date();
+        var sameDay = d.getFullYear() === today.getFullYear() &&
+                      d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+        var hm = p(d.getHours()) + ":" + p(d.getMinutes());
+        return sameDay ? hm : (p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + hm);
+      }
+
+      /* ---------- build cards & tabs ---------- */
+      SOURCES.forEach(function (src, i) {
+        var tab = el("button", "tab" + (i === 0 ? " active" : ""), null);
+        tab.style.setProperty("--c", src.color);
+        var dot = el("span", "dot");
+        tab.appendChild(dot);
+        tab.appendChild(document.createTextNode(src.name));
+        tab.addEventListener("click", function () { goTo(i, true); });
+        tabsEl.appendChild(tab);
+
+        var di = el("i", i === 0 ? "on" : "");
+        dotsEl.appendChild(di);
+
+        var card = el("section", "card");
+        card.style.setProperty("--c", src.color);
+        card.setAttribute("data-state", "loading");
+        card.setAttribute("data-id", src.id);
+
+        var head = el("header", "card-head");
+        head.appendChild(el("span", "mark"));
+        var names = el("div", "names");
+        var pn = el("span", "pname", src.name);
+        var bd = el("span", "board", src.board);
+        names.appendChild(pn); names.appendChild(bd);
+        head.appendChild(names);
+        var stamp = el("span", "stamp", "加载中…");
+        head.appendChild(stamp);
+        var rbtn = el("button", "mini-btn");
+        rbtn.title = "刷新" + src.name;
+        rbtn.setAttribute("aria-label", "刷新" + src.name);
+        rbtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+        rbtn.addEventListener("click", function () { load(src, true); });
+        head.appendChild(rbtn);
+        card.appendChild(head);
+
+        var list = el("ol", "list");
+        card.appendChild(list);
+
+        var stLoad = el("div", "state state-loading");
+        var skl = el("div", "skl");
+        [92, 78, 96, 64, 85, 71, 90, 58].forEach(function (w) {
+          var s = el("div"); s.style.width = w + "%"; skl.appendChild(s);
+        });
+        stLoad.appendChild(skl);
+        card.appendChild(stLoad);
+
+        var stErr = el("div", "state state-error");
+        stErr.appendChild(el("p", null, "这个平台的数据暂时没取到。"));
+        stErr.appendChild(el("p", "small", "可能是接口繁忙或网络波动，稍等一下再试。"));
+        var acts = el("div", "actions");
+        var retry = el("button", "btn primary", "重试");
+        retry.addEventListener("click", function () { load(src, true); });
+        var open = el("a", "btn", "在原站看");
+        open.href = ORIGIN; open.target = "_blank"; open.rel = "noopener";
+        acts.appendChild(retry); acts.appendChild(open);
+        stErr.appendChild(acts);
+        card.appendChild(stErr);
+
+        var stEmpty = el("div", "state state-empty");
+        stEmpty.appendChild(el("p", null, "暂时没有热点条目，稍后再来看看。"));
+        card.appendChild(stEmpty);
+
+        deck.appendChild(card);
+        cards[src.id] = { src: src, el: card, list: list, stamp: stamp, btn: rbtn, updated: 0 };
+      });
+
+      /* ---------- carousel behaviour ---------- */
+      var activeIdx = 0;
+      function setActive(i) {
+        if (i === activeIdx && i !== -1) { /* still update below */ }
+        activeIdx = i;
+        var tabs = tabsEl.children, dots = dotsEl.children;
+        for (var k = 0; k < tabs.length; k++) {
+          tabs[k].classList.toggle("active", k === i);
+          if (dots[k]) dots[k].classList.toggle("on", k === i);
+        }
+        if (i > 0) hintEl.classList.add("gone");
+        var t = tabs[i];
+        if (t) t.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+      }
+      function goTo(i, flash) {
+        var cardEls = deck.children;
+        var c = cardEls[i];
+        if (!c) return;
+        if (window.innerWidth < 900) {
+          deck.scrollTo({ left: c.offsetLeft - deck.offsetLeft - 14, behavior: "smooth" });
+        } else {
+          c.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          if (flash) {
+            c.classList.add("flash");
+            setTimeout(function () { c.classList.remove("flash"); }, 900);
+          }
+        }
+        setActive(i);
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) {
+            var idx = Array.prototype.indexOf.call(deck.children, en.target);
+            if (idx >= 0) setActive(idx);
+          }
+        });
+      }, { root: deck, threshold: 0.55 });
+      for (var ci = 0; ci < deck.children.length; ci++) io.observe(deck.children[ci]);
+
+      deck.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowRight") goTo(Math.min(activeIdx + 1, SOURCES.length - 1));
+        if (e.key === "ArrowLeft") goTo(Math.max(activeIdx - 1, 0));
+      });
+      deck.setAttribute("tabindex", "0");
+
+      /* ---------- data ---------- */
+      function renderItems(c, items) {
+        var frag = document.createDocumentFragment();
+        items.forEach(function (it, idx) {
+          var li = el("li", "item");
+          var a = el("a");
+          a.href = it.url || it.mobileUrl || "#";
+          a.target = "_blank"; a.rel = "noopener";
+          var rank = el("span", "rank", String(idx + 1));
+          var body = el("div", "body");
+          body.appendChild(el("div", "title", it.title || ""));
+          var metaParts = [];
+          var ex = it.extra || {};
+          if (ex.hover) metaParts.push(String(ex.hover));
+          if (ex.info) metaParts.push(String(ex.info));
+          var pd = it.pubDate ? Number(it.pubDate) : (ex.date ? Number(ex.date) : 0);
+          if (pd && !isNaN(pd)) metaParts.push(clockTime(pd));
+          if (metaParts.length) {
+            var meta = el("div", "meta");
+            metaParts.forEach(function (p, j) {
+              if (j > 0) meta.appendChild(el("span", "sep", "·"));
+              meta.appendChild(document.createTextNode(p));
+            });
+            body.appendChild(meta);
+          }
+          a.appendChild(rank); a.appendChild(body);
+          li.appendChild(a);
+          frag.appendChild(li);
+        });
+        c.list.innerHTML = "";
+        c.list.appendChild(frag);
+        c.list.scrollTop = 0;
+      }
+
+      function updateStamp(c) {
+        if (c.el.getAttribute("data-state") === "error") { c.stamp.textContent = "加载失败"; return; }
+        if (!c.updated) { c.stamp.textContent = "加载中…"; return; }
+        c.stamp.innerHTML = "";
+        var live = el("span", "live-dot");
+        c.stamp.appendChild(live);
+        var b = el("b", null, relTime(c.updated) + "更新");
+        c.stamp.appendChild(b);
+      }
+
+      /* ---------- fetch routes ----------
+         Data comes from our own mirror: a small service re-fetches the
+         NewsNow API every 5 minutes and republishes each platform's JSON
+         (titles and original links untouched) from hosts that do send
+         Access-Control-Allow-Origin, so the phone browser can read it —
+         the origin API itself sends no CORS header and stays unreadable
+         cross-origin. The mirror routes go first; the old direct/proxy
+         routes remain as fallbacks. Whichever route works is promoted to
+         the front for the next round. */
+      var MIRROR_RAW = "https://raw.githubusercontent.com/LaomaiAI/newsnow-mirror/main/data/";
+      var MIRROR_CDN = "https://cdn.jsdelivr.net/gh/LaomaiAI/newsnow-mirror@main/data/";
+      function fetchWithTimeout(url, ms) {
+        var ctrl = ("AbortController" in window) ? new AbortController() : null;
+        var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms) : null;
+        return fetch(url, ctrl ? { signal: ctrl.signal } : {}).then(function (res) {
+          if (timer) clearTimeout(timer);
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res;
+        }, function (err) {
+          if (timer) clearTimeout(timer);
+          throw err;
+        });
+      }
+      function fetchJson(url, ms) {
+        return fetchWithTimeout(url, ms).then(function (res) { return res.json(); });
+      }
+      function fetchText(url, ms) {
+        return fetchWithTimeout(url, ms).then(function (res) { return res.text(); });
+      }
+      function extractJson(text) {
+        var marker = "Markdown Content:";
+        var at = text.indexOf(marker);
+        var from = at >= 0 ? at + marker.length : 0;
+        var start = text.indexOf("{", from);
+        var end = text.lastIndexOf("}");
+        if (start < 0 || end <= start) throw new Error("no JSON in payload");
+        return JSON.parse(text.slice(start, end + 1));
+      }
+      function validData(d) {
+        return !!d && Object.prototype.toString.call(d.items) === "[object Array]";
+      }
+      var ROUTES = [
+        function (target, src) {      // mirror, raw file host (sends CORS)
+          return fetchJson(MIRROR_RAW + src.id + ".json", 15000);
+        },
+        function (target, src) {      // mirror, CDN copy of the same files
+          return fetchJson(MIRROR_CDN + src.id + ".json", 15000);
+        },
+        function (target) {           // reader proxy: relays the origin JSON, reflects CORS back
+          return fetchText("https://r.jina.ai/" + target, 25000).then(extractJson);
+        },
+        function (target) {           // direct (only readable if the API ever sends CORS)
+          return fetchJson(target, 10000);
+        },
+        function (target) {           // public CORS proxy, raw passthrough
+          return fetchText("https://api.allorigins.win/raw?url=" + encodeURIComponent(target), 25000)
+            .then(function (t) { return JSON.parse(t); });
+        },
+        function (target) {           // same proxy, JSON-wrapped payload
+          return fetchJson("https://api.allorigins.win/get?url=" + encodeURIComponent(target), 25000)
+            .then(function (d) {
+              if (!d || typeof d.contents !== "string") throw new Error("bad wrapper");
+              return JSON.parse(d.contents);
+            });
+        }
+      ];
+      var routeOrder = [0, 1, 2, 3, 4, 5];
+      function promoteRoute(r) {
+        var next = [r];
+        routeOrder.forEach(function (x) { if (x !== r) next.push(x); });
+        routeOrder = next;
+      }
+
+      function load(src, manual) {
+        var c = cards[src.id];
+        if (!c.data) {
+          c.el.setAttribute("data-state", "loading");
+          c.stamp.textContent = "加载中…";
+        }
+        c.btn.classList.add("spinning");
+        var target = API + encodeURIComponent(src.id) + "&latest";
+        var order = routeOrder.slice();
+        (function attempt(i) {
+          if (i >= order.length) {
+            c.btn.classList.remove("spinning");
+            if (!c.data) {
+              c.el.setAttribute("data-state", "error");
+              c.stamp.textContent = "加载失败";
+            }
+            failCount++;
+            checkBanner();
+            return;
+          }
+          ROUTES[order[i]](target, src).then(function (data) {
+            if (!validData(data)) throw new Error("invalid payload");
+            return data;
+          }).then(function (data) {
+            promoteRoute(order[i]);
+            c.btn.classList.remove("spinning");
+            var items = data.items;
+            c.updated = data.updatedTime || Date.now();
+            if (!items.length) {
+              c.el.setAttribute("data-state", "empty");
+            } else {
+              c.data = items;
+              renderItems(c, items);
+              c.el.setAttribute("data-state", "ready");
+            }
+            updateStamp(c);
+            checkBanner();
+          }, function () {
+            attempt(i + 1);
+          });
+        })(0);
+      }
+
+      function checkBanner() {
+        var anyReady = SOURCES.some(function (s) { return !!cards[s.id].data; });
+        var allTried = SOURCES.every(function (s) {
+          var st = cards[s.id].el.getAttribute("data-state");
+          return st === "error" || st === "ready" || st === "empty";
+        });
+        banner.classList.toggle("show", allTried && !anyReady);
+      }
+
+      function loadAll() {
+        refreshAllBtn.classList.add("spinning");
+        SOURCES.forEach(function (s) { load(s, true); });
+        setTimeout(function () { refreshAllBtn.classList.remove("spinning"); }, 1200);
+      }
+      refreshAllBtn.addEventListener("click", loadAll);
+
+      /* ---------- embed fallback ---------- */
+      var embedView = document.getElementById("embedView");
+      var embedFrame = document.getElementById("embedFrame");
+      document.getElementById("toEmbed").addEventListener("click", function () {
+        if (!embedFrame.src) embedFrame.src = ORIGIN;
+        embedView.classList.add("show");
+      });
+      document.getElementById("backToDeck").addEventListener("click", function () {
+        embedView.classList.remove("show");
+        loadAll();
+      });
+
+      /* ---------- timers ---------- */
+      SOURCES.forEach(function (s) { load(s, false); });
+      setInterval(function () {
+        SOURCES.forEach(function (s) { updateStamp(cards[s.id]); });
+      }, 30000);
+      setInterval(function () {
+        if (!document.hidden) SOURCES.forEach(function (s) { load(s, false); });
+      }, 5 * 60 * 1000);
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) {
+          SOURCES.forEach(function (s) {
+            var c = cards[s.id];
+            if (!c.updated || Date.now() - c.updated > 5 * 60 * 1000) load(s, false);
+          });
+        }
+      });
+    </script>
+  </body>
+</html>
